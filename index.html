@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拼猫猫 合约持仓与K线</title>
+    <style>
+        /* 页面基本样式 */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fc;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            color: #333;
+        }
+
+        /* 容器样式 */
+        .container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            width: 80%;
+            max-width: 1200px;
+            text-align: center;
+        }
+
+        /* 标题样式 */
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+        }
+
+        /* 状态消息样式 */
+        .status {
+            font-size: 1.2rem;
+            color: #16a085;
+            font-weight: bold;
+        }
+
+        /* 时间显示样式 */
+        #time {
+            font-size: 1.2rem;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+
+        /* 持仓信息表格样式 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 30px;
+            font-size: 1rem;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+
+        th {
+            background-color: #2c3e50;
+            color: white;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        /* K线图容器 */
+        #chart-container {
+            width: 100%;
+            height: 500px;
+            margin-top: 40px;
+        }
+
+        /* 按钮样式 */
+        button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        /* 嵌入K线图的iframe样式 */
+        iframe {
+            width: 100%;
+            height: 500px;
+            border: none;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>拼猫猫 合约持仓与K线</h1>
+        <p id="time"></p>
+        <p class="status" id="positionStatus">获取持仓信息中...</p>
+
+        <!-- 持仓信息表格 -->
+        <table id="positionsTable" style="display: none;">
+            <thead>
+                <tr>
+                    <th>合约</th>
+                    <th>入场价格</th>
+                    <th>杠杆</th>
+                    <th>持仓数量</th>
+                    <th>浮动盈亏</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <!-- K线图容器 -->
+        <div id="chart-container">
+            <iframe id="chartIframe" src="" title="K线图"></iframe>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // 获取北京时间
+            function updateTime() {
+                fetch("https://worldtimeapi.org/api/timezone/Asia/Shanghai")
+                    .then(response => response.json())
+                    .then(data => {
+                        const currentTime = new Date(data.datetime);
+                        const formattedTime = currentTime.getFullYear() + '/' + (currentTime.getMonth() + 1) + '/' + currentTime.getDate() + ' ' + currentTime.toLocaleTimeString();
+                        document.getElementById("time").textContent = `北京时间：${formattedTime}`;
+                    })
+                    .catch(error => {
+                        console.error("获取北京时间失败:", error);
+                    });
+            }
+
+            // 每秒更新一次时间
+            setInterval(updateTime, 1000);
+            updateTime();  // 初始化时间
+
+            // 获取并显示持仓信息
+            function fetchPositions() {
+                fetch("https://cloud.hny3494317690.top:5001/futures_position")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.positions && data.positions.length > 0) {
+                            document.getElementById("positionStatus").textContent = "持仓信息加载成功！";
+                            const tableBody = document.querySelector("#positionsTable tbody");
+                            tableBody.innerHTML = "";  // 清空现有的行
+
+                            data.positions.forEach(position => {
+                                const row = document.createElement("tr");
+                                row.innerHTML = `
+                                    <td>${position.symbol}</td>
+                                    <td>${position.entryPrice}</td>
+                                    <td>${position.leverage}</td>
+                                    <td>${position.positionAmt}</td>
+                                    <td>${position.unRealizedProfit}</td>
+                                `;
+                                tableBody.appendChild(row);
+                            });
+
+                            document.getElementById("positionsTable").style.display = "table";
+                        } else {
+                            document.getElementById("positionStatus").textContent = "没有持仓信息。";
+                        }
+                    })
+                    .catch(error => {
+                        document.getElementById("positionStatus").textContent = "获取持仓信息失败，请稍后重试。";
+                        console.error("获取持仓信息失败:", error);
+                    });
+            }
+
+            // 初始加载持仓信息
+            fetchPositions();
+
+            // 每 3 秒刷新一次持仓信息
+            setInterval(fetchPositions, 3000);
+
+            // 初始化iframe的src
+            const chartIframe = document.getElementById("chartIframe");
+            chartIframe.src = "https://www.coinglass.com/tv/zh/Binance_BTCUSDT";  // 这里可以根据需要动态更新
+        });
+    </script>
+</body>
+</html>
